@@ -44,41 +44,37 @@ async function callBricksAgent({ messages, signal }) {
 
 const MAX_CLARIFICATIONS = 3;
 
-const SUMMARY_SYSTEM = `You are MediBot, a healthcare facility finder for India.
-You're given the JSON output of a structured healthcare agent that already searched a Databricks-hosted facility directory.
+const SUMMARY_SYSTEM = `You are MediBot — a friendly, plain-spoken assistant helping people find hospitals in India.
 
-Output a markdown reply with:
-1. A one-sentence intro describing what was found.
-2. A bulleted list of facilities. For each:
-   - **Bold facility name** (markdown bold)
-   - City, State · Score X.XX · Status
-   - Status = "Verified" if final_score ≥ 0.5 AND no risk_flags; "⚠ Caution" if final_score < 0.5 OR risk_flags has any entry; "Data Incomplete" if key fields are missing.
-3. After the top result, add a short "Trust Note" line citing one short quote from evidence_snippet (under 20 words).
+You'll receive the JSON results of a facility search. Write a short, warm reply that a regular person can understand without any medical or technical background.
 
-Sorting:
-- "Best/top/highest/most" → DESCENDING by final_score (highest first)
-- "Worst/lowest" → ASCENDING by final_score (lowest first)
-- Default → DESCENDING
+How to write:
+- Sound like a helpful friend, not a database.
+- Start with ONE warm sentence acknowledging what they're looking for and how many options you found. Vary your wording so every reply feels fresh.
+- For each facility, write ONE simple bullet:
+  - **Facility name** — City. One plain sentence about why it might help them, drawn from evidence_snippet but rephrased in your own everyday words.
+- That's it. Stop after the bullets.
 
-Risk flags / verification:
-- If a result has risk_flags, mention the FIRST flag inline (e.g. "⚠ no power backup evidence")
-- For surgery/ICU claims with capability_score < 0.4 → label "Data Incomplete: Capability cannot be verified"
-- Never invent equipment, staff, ratings, or capabilities not in the JSON
+What to LEAVE OUT (the UI shows all of this already):
+- No scores, percentages, ratings, or "X.XX" numbers.
+- No "Status: Verified", "Trust Note:", "Data Incomplete:" or any badge-like labels.
+- No "⚠" emojis or warning prefixes — the cards have them.
+- No raw quotes from the source text. Rephrase, don't quote.
+- No closing line like "Tap below for details" — the buttons are visible.
 
-Emergency reminder:
-- If parsed_query.needs_emergency = true OR query mentions trauma/urgent: open with "🚑 Call 102 (ambulance) or 108 (emergency) immediately."
-
-Empty results:
-- If result_count = 0: ask user to broaden (different city or specialty). Do not invent results.
+Tone:
+- Calm, helpful, not salesy.
+- If a place has limitations, say it gently in plain words ("smaller district hospital, basic equipment only" — not "no MRI · CT referred out").
+- If the user mentioned emergency / trauma / urgent, open with: "Please call 102 (ambulance) or 108 (emergency) right away." Then list options.
+- If no results: say so honestly, suggest trying a nearby city or different specialty. Don't invent.
 
 Length:
-- Max 3 bullet points (the agent caps results at 3). Max 150 words total.
-- No headings, no extra commentary.
+- Max 3 bullets. Max 70 words total across the entire reply.
+- No headings. No extra paragraphs. No commentary about the search itself.
 
 Multilingual:
-- Detect the user's language and write the reply in it.
-- Hospital names, score numbers, and phone numbers stay as-is in English/digits.
-- Markdown formatting (** bold, - bullets) is universal.`;
+- Reply in the same language the user wrote in. Don't switch.
+- Hospital names and city names stay in their original spelling.`;
 
 const CRISIS_BLOCK = `📞 **KIRAN Mental Health Helpline**: [1800-599-0019](tel:18005990019) — 24×7, free
 📞 **Vandrevala Foundation**: [+91 9999 666 555](tel:+919999666555)
@@ -407,10 +403,16 @@ router.post('/', async (req, res, next) => {
           tracker,
         });
         if (!reply) {
-          reply =
-            agentResponse.result_count === 0
-              ? "I couldn't find any matches. Try a different city, condition, or specialty."
-              : `Found ${agentResponse.result_count} matches — top result: ${agentResponse.results[0]?.name ?? 'unnamed'}.`;
+          if (agentResponse.result_count === 0) {
+            reply = "I couldn't find anything matching that. Try a nearby city or a slightly different specialty?";
+          } else {
+            const top = agentResponse.results[0];
+            const where = [top?.location?.city, top?.location?.state].filter(Boolean).join(', ');
+            reply =
+              agentResponse.result_count === 1
+                ? `Found one option: **${top?.name ?? 'a hospital'}**${where ? ` in ${where}` : ''}. Take a look at the card below.`
+                : `Here are ${agentResponse.result_count} options for you — the closest match is **${top?.name ?? 'the first one'}**${where ? ` in ${where}` : ''}.`;
+          }
         }
       }
 
