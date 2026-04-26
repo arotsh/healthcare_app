@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "yarn build",
+  "outputDirectory": "dist",
+  "framework": null,
+  "functions": {
+    "api/[...path].js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
+}

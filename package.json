@@ -1,0 +1,41 @@
+{
+  "name": "medimap-india",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"yarn dev:api\" \"yarn dev:web\"",
+    "dev:web": "vite",
+    "dev:api": "yarn --cwd backend dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node backend/src/server.js",
+    "prestart": "[ -d dist ] || vite build",
+    "install:all": "yarn install && yarn --cwd backend install",
+    "eval": "node backend/eval/run.js"
+  },
+  "packageManager": "yarn@1.22.22",
+  "dependencies": {
+    "@chakra-ui/react": "^2.8.2",
+    "@databricks/sql": "^1.8.4",
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "serverless-http": "^3.2.0",
+    "framer-motion": "^11.0.0",
+    "leaflet": "^1.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.2.1",
+    "react-leaflet": "^4.2.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.14.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "vite": "^5.3.1"
+  }
+}

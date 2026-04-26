@@ -1,0 +1,18 @@
+{
+  "name": "medimap-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "ping": "node src/scripts/ping.js"
+  },
+  "dependencies": {
+    "@databricks/sql": "^1.8.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "packageManager": "yarn@1.22.22"
+}

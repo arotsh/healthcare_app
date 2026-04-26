@@ -1,0 +1,45 @@
+# Databricks Lakehouse App — entry point.
+# Deploy:   databricks apps deploy medimap --source-code-path /Workspace/Users/<you>/medimap
+# The runtime sets DATABRICKS_APP_PORT; the server picks it up automatically.
+
+command: ["npm", "start"]
+
+env:
+  - name: NODE_ENV
+    value: production
+
+  # Databricks workspace + serving credentials (set as Secrets in the Apps UI;
+  # values below are placeholders showing the contract).
+  - name: DATABRICKS_HOST
+    valueFrom: medimap-secrets/databricks_host
+  - name: DATABRICKS_TOKEN
+    valueFrom: medimap-secrets/databricks_token
+  - name: DATABRICKS_HTTP_PATH
+    valueFrom: medimap-secrets/databricks_http_path
+  - name: DATABRICKS_TABLE
+    value: workspace.default.clean_facilities
+
+  - name: DATABRICKS_AGENT_URL
+    value: https://dbc-822c98e3-262c.cloud.databricks.com/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations
+  - name: DATABRICKS_AGENT_MODEL
+    value: databricks-meta-llama-3-3-70b-instruct
+  - name: DATABRICKS_AGENT_TABLE
+    value: workspace.default.facility_signals
+
+  - name: GROQ_API_KEY
+    valueFrom: medimap-secrets/groq_api_key
+
+  - name: DATABRICKS_VS_ENDPOINT
+    value: medimap_vs
+  - name: DATABRICKS_VS_INDEX
+    value: workspace.default.clean_facilities_vs_index
+
+  - name: MLFLOW_EXPERIMENT_PATH
+    value: /Users/arayikdev@gmail.com/medimap-traces
+
+  - name: DATABRICKS_GENIE_SPACE_ID
+    value: 01f140d6f5be18759b1461d0872c5779
+
+  # Optional — set after running notebooks/medimap_agent_bricks.py
+  # - name: DATABRICKS_BRICKS_AGENT_ENDPOINT
+  #   value: medimap-agent
