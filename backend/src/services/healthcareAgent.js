@@ -69,32 +69,19 @@ const cleanJson = (raw) => {
 };
 
 async function parseQueryLLM(userQuery) {
-  if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY not set');
-
+  // Use the shared LLM provider wrapper — respects GROQ_MODEL / LLM_URL etc.
+  // so we don't waste 70B quota on parsing when an 8B model is configured.
+  const { chatCompletion } = await import('./llm.js');
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 15_000);
-
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: PARSE_PROMPT(userQuery) }],
-        temperature: 0,
-      }),
+    const llm = await chatCompletion({
+      messages: [{ role: 'user', content: PARSE_PROMPT(userQuery) }],
+      temperature: 0,
+      maxTokens: 240,
       signal: ctrl.signal,
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Groq ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(cleanJson(raw));
+    const parsed = JSON.parse(cleanJson(llm.content || '{}'));
     parsed.raw_query = userQuery;
     return parsed;
   } finally {

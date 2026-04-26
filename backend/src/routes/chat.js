@@ -205,8 +205,36 @@ async function decideAction({ messages, hasLocation, clarifyCount, signal, track
   return { action: 'clarify', question: text };
 }
 
+// Trim the agent response down to the bare minimum the LLM needs to write
+// a friendly summary — name, location, evidence, key signals. Drops
+// scores, chain_of_thought, semantic metadata, verification details, etc.
+// Keeps prompts well under Groq's 6K-tokens-per-minute window.
+function compactAgentForSummary(agent) {
+  const results = (agent?.results ?? []).slice(0, 3).map((r) => {
+    const activeSignals = Object.entries(r.signals || {})
+      .filter(([, level]) => level && level !== 'none')
+      .map(([kind, level]) => `${kind}:${level}`);
+    const evidence = (r.evidence_snippet || '').slice(0, 280);
+    return {
+      name: r.name,
+      city: r.location?.city,
+      state: r.location?.state,
+      signals: activeSignals,
+      risks: (r.risk_flags || []).slice(0, 2),
+      evidence,
+    };
+  });
+  return {
+    query: agent?.query,
+    needs_emergency: Boolean(agent?.parsed_query?.needs_emergency),
+    result_count: agent?.result_count ?? results.length,
+    results,
+  };
+}
+
 async function summarize({ query, agentResponse, signal, tracker }) {
-  const prompt = `User query: "${query}"\n\nAgent output:\n${JSON.stringify(agentResponse, null, 2)}`;
+  const compact = compactAgentForSummary(agentResponse);
+  const prompt = `User query: "${query}"\n\nAgent output:\n${JSON.stringify(compact, null, 2)}`;
   tracker.stageStart('summarize');
   try {
     const llm = await callLlama({
@@ -214,8 +242,8 @@ async function summarize({ query, agentResponse, signal, tracker }) {
         { role: 'system', content: SUMMARY_SYSTEM },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.3,
-      maxTokens: 600,
+      temperature: 0.4,
+      maxTokens: 280,
       signal,
     });
     tracker.addTokens('summarize', llm.promptTokens, llm.completionTokens);
@@ -403,15 +431,32 @@ router.post('/', async (req, res, next) => {
           tracker,
         });
         if (!reply) {
+          const isEmergency =
+            Boolean(agentResponse.parsed_query?.needs_emergency) ||
+            /\b(emergency|trauma|accident|urgent|बचाओ|आपातकाल)\b/i.test(userContext);
+          const ePrefix = isEmergency
+            ? '**Please call 102 (ambulance) or 108 (emergency) right away.**\n\n'
+            : '';
           if (agentResponse.result_count === 0) {
-            reply = "I couldn't find anything matching that. Try a nearby city or a slightly different specialty?";
+            reply = `${ePrefix}I couldn't find anything matching that. Try a nearby city or a slightly different specialty?`;
           } else {
             const top = agentResponse.results[0];
             const where = [top?.location?.city, top?.location?.state].filter(Boolean).join(', ');
+            const others = agentResponse.results.slice(1, 3);
+            const others_line =
+              others.length > 0
+                ? '\n\nOther options nearby:\n' +
+                  others
+                    .map((r) => {
+                      const w = [r.location?.city, r.location?.state].filter(Boolean).join(', ');
+                      return `- **${r.name ?? 'Unnamed'}**${w ? ` — ${w}` : ''}`;
+                    })
+                    .join('\n')
+                : '';
             reply =
               agentResponse.result_count === 1
-                ? `Found one option: **${top?.name ?? 'a hospital'}**${where ? ` in ${where}` : ''}. Take a look at the card below.`
-                : `Here are ${agentResponse.result_count} options for you — the closest match is **${top?.name ?? 'the first one'}**${where ? ` in ${where}` : ''}.`;
+                ? `${ePrefix}Found one option for you: **${top?.name ?? 'a hospital'}**${where ? ` in ${where}` : ''}. The card below has the details.`
+                : `${ePrefix}Here are ${agentResponse.result_count} options. The closest match is **${top?.name ?? 'the first one'}**${where ? ` in ${where}` : ''}.${others_line}`;
           }
         }
       }
