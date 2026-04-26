@@ -89,17 +89,36 @@ async function parseQueryLLM(userQuery) {
   }
 }
 
+// Native-script Indian city/state names → lowercase English equivalents.
+// Used by the simple parser when the LLM parser is rate-limited so a
+// Hindi/Bengali/Tamil query still gets the right location.
+const NATIVE_TO_LATIN = {
+  'दिल्ली': 'delhi', 'मुंबई': 'mumbai', 'बैंगलोर': 'bangalore', 'चेन्नई': 'chennai',
+  'कोलकाता': 'kolkata', 'पटना': 'patna', 'हैदराबाद': 'hyderabad', 'पुणे': 'pune',
+  'अहमदाबाद': 'ahmedabad', 'बिहार': 'bihar', 'महाराष्ट्र': 'maharashtra',
+  'तमिलनाडु': 'tamil nadu', 'उत्तर प्रदेश': 'uttar pradesh', 'कर्नाटक': 'karnataka',
+  'কলকাতা': 'kolkata', 'মুম্বাই': 'mumbai', 'দিল্লি': 'delhi', 'বিহার': 'bihar',
+  'বেঙ্গালুরু': 'bangalore', 'চেন্নাই': 'chennai', 'পাটনা': 'patna',
+  'சென்னை': 'chennai', 'மும்பை': 'mumbai', 'தில்லி': 'delhi',
+  'హైదరాబాద్': 'hyderabad', 'చెన్నై': 'chennai',
+  'ಬೆಂಗಳೂರು': 'bangalore', 'ಕರ್ನಾಟಕ': 'karnataka',
+};
+
 function parseQuerySimple(userQuery) {
-  const q = userQuery.toLowerCase();
+  let q = userQuery.toLowerCase();
+  // Append Latin equivalents for any native-script names found
+  for (const [native, latin] of Object.entries(NATIVE_TO_LATIN)) {
+    if (userQuery.includes(native)) q = `${q} ${latin}`;
+  }
   const has = (kws) => kws.some((k) => q.includes(k));
   const parsed = {
     raw_query: userQuery,
-    needs_emergency: has(['emergency', 'urgent', 'trauma', 'casualty']),
-    needs_surgery: has(['surgery', 'operation', 'appendectomy', 'surgeon']),
-    needs_diagnostics: has(['mri', 'ct', 'scan', 'xray', 'x-ray', 'diagnostic']),
-    needs_critical_care: has(['icu', 'ventilator', 'critical care', 'oxygen']),
-    needs_maternal: has(['maternity', 'neonatal', 'nicu', 'delivery', 'childbirth']),
-    needs_specialty: has(['oncology', 'cardiology', 'neurology', 'dialysis', 'specialist']),
+    needs_emergency: has(['emergency', 'urgent', 'trauma', 'casualty', 'accident', 'इमरजेंसी', 'आपातकाल', 'दुर्घटना']),
+    needs_surgery: has(['surgery', 'operation', 'appendectomy', 'surgeon', 'सर्जरी', 'ऑपरेशन']),
+    needs_diagnostics: has(['mri', 'ct', 'scan', 'xray', 'x-ray', 'diagnostic', 'एक्स-रे', 'सीटी']),
+    needs_critical_care: has(['icu', 'ventilator', 'critical care', 'oxygen', 'आईसीयू', 'गहन देखभाल']),
+    needs_maternal: has(['maternity', 'neonatal', 'nicu', 'delivery', 'childbirth', 'maternal', 'मातृत्व', 'प्रसव']),
+    needs_specialty: has(['oncology', 'cardiology', 'neurology', 'dialysis', 'specialist', 'cardiac', 'heart', 'cancer', 'kidney', 'दिल', 'हृदय', 'कैंसर']),
     location_text: null,
     top_k: null,
     priority: [],
