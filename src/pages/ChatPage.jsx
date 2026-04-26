@@ -32,6 +32,8 @@ import {
   LuLifeBuoy,
   LuChartBar,
   LuExternalLink,
+  LuStethoscope,
+  LuSiren,
 } from 'react-icons/lu';
 import { sendChat } from '../api/chat.js';
 import FacilityCards from '../components/FacilityCards.jsx';
@@ -133,10 +135,12 @@ function MessageRow({ msg, onOpenDetails, userLocation, tts, voiceLang }) {
           bg={
             isUser
               ? 'brand.700'
-              : msg.isCrisis
+              : msg.isEmergency || msg.isCrisis
               ? 'danger.50'
               : msg.isRedirect
               ? 'warning.50'
+              : msg.isIntake
+              ? 'brand.50'
               : msg.isClarification
               ? 'sky.50'
               : msg.isAnalytics
@@ -146,17 +150,19 @@ function MessageRow({ msg, onOpenDetails, userLocation, tts, voiceLang }) {
           color={isUser ? 'white' : 'ink.800'}
           border={isUser ? 'none' : '1px solid'}
           borderColor={
-            msg.isCrisis
+            msg.isEmergency || msg.isCrisis
               ? 'danger.500'
               : msg.isRedirect
               ? 'warning.500'
+              : msg.isIntake
+              ? 'brand.300'
               : msg.isClarification
               ? 'sky.200'
               : msg.isAnalytics
               ? 'brand.200'
               : 'ink.100'
           }
-          borderLeftWidth={msg.isCrisis ? '4px' : undefined}
+          borderLeftWidth={msg.isCrisis || msg.isEmergency ? '4px' : undefined}
           px={4}
           py={3}
           borderRadius="16px"
@@ -168,7 +174,15 @@ function MessageRow({ msg, onOpenDetails, userLocation, tts, voiceLang }) {
           wordBreak="break-word"
           overflowWrap="anywhere"
         >
-          {msg.isClarification && (
+          {msg.isIntake && (
+            <HStack mb={2} spacing={1.5}>
+              <Icon as={LuStethoscope} color="brand.700" boxSize="14px" />
+              <Text fontSize="0.7rem" fontWeight={700} color="brand.700" letterSpacing="0.05em" textTransform="uppercase">
+                Clinical intake
+              </Text>
+            </HStack>
+          )}
+          {msg.isClarification && !msg.isIntake && (
             <Text fontSize="0.7rem" fontWeight={700} color="sky.600" letterSpacing="0.05em" textTransform="uppercase" mb={1}>
               Quick question
             </Text>
@@ -177,6 +191,14 @@ function MessageRow({ msg, onOpenDetails, userLocation, tts, voiceLang }) {
             <Text fontSize="0.7rem" fontWeight={700} color="warning.600" letterSpacing="0.05em" textTransform="uppercase" mb={1}>
               Out of scope
             </Text>
+          )}
+          {msg.isEmergency && (
+            <HStack mb={2} spacing={1.5}>
+              <Icon as={LuSiren} color="danger.600" boxSize="15px" />
+              <Text fontSize="0.7rem" fontWeight={700} color="danger.600" letterSpacing="0.05em" textTransform="uppercase">
+                Emergency · call 102 / 108
+              </Text>
+            </HStack>
           )}
           {msg.isCrisis && (
             <HStack mb={2} spacing={1.5}>
@@ -367,6 +389,8 @@ export default function ChatPage({
           isRedirect: !!data.isRedirect,
           isCrisis: !!data.isCrisis,
           isAnalytics: !!data.isAnalytics,
+          isEmergency: !!data.isEmergency,
+          isIntake: !!data.isIntake,
         },
       ]);
       setClarifyCount(data.isClarification ? data.clarifyCount ?? clarifyCount + 1 : 0);

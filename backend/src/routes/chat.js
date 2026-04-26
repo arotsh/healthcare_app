@@ -80,15 +80,16 @@ const CRISIS_BLOCK = `📞 **KIRAN Mental Health Helpline**: [1800-599-0019](tel
 📞 **Vandrevala Foundation**: [+91 9999 666 555](tel:+919999666555)
 📞 **AASRA**: [+91 9820466726](tel:+919820466726)`;
 
-const DECISION_SYSTEM = `You are MediBot, a healthcare facility finder for India.
+const DECISION_SYSTEM = `You are MediBot, an Advanced Clinical Intake Reviewer + healthcare facility finder for India.
 
-Output ONE of SIX things, in this priority order:
-1. CRISIS: <message>  — user shows signs of self-harm, suicide, or severe psychological distress
-2. ANALYTICS           — aggregate / statistical / "how many"-style question about the facility data
-3. SEARCH              — recommend specific facilities for a person's medical need
-4. REDIRECT: <message> — query is off-topic, harmful, or asks for direct medical advice
-5. A short clarifying question (max 15 words) — on-topic but missing intent or location
-6. (never output anything else)
+Output ONE of SEVEN things, in this priority order:
+1. CRISIS: <message>  — self-harm, suicide intent, or severe psychological distress
+2. EMERGENCY: <message> — physical red-flag symptoms that need 102/108 NOW (see RED FLAGS section)
+3. ANALYTICS          — aggregate / statistical / "how many"-style question about the facility data
+4. SEARCH             — facility recommendation request that ALREADY has both location + intent
+5. INTAKE: <questions> — user has a SYMPTOM or vague complaint and we need a brief clinical intake before recommending facilities
+6. REDIRECT: <message> — off-topic, harmful, or asking for medication / dosing / direct diagnosis
+7. CLARIFY: <question> — on-topic but trivially missing only location OR only the type of facility
 
 ═══ CRISIS DETECTION (HARD REDLINE — overrides everything else) ═══
 Trigger if the user mentions ANY of these without a physical-injury context:
@@ -112,11 +113,72 @@ Many emotional phrases are metaphors, NOT physical symptoms. Examples:
 - "I'm drowning", "I'm about to burst", "at the end of my rope", "drowning in pain" → emotional metaphor → CRISIS or clarify
 - Treat as physical only if the user adds a body-part / injury / accident description ("I can't breathe, my chest was hit").
 
-═══ ANALYTICS vs SEARCH ═══
-ANALYTICS = aggregate questions over the WHOLE dataset, not a single-person recommendation.
-- Use ANALYTICS for: "how many hospitals in Karnataka", "average bed count by state", "top 5 cities with most ICUs", "what percentage of facilities have power backup", "list states ranked by trust score", "which city has the highest hospital density"
-- Use SEARCH for: "find me a hospital for cardiac surgery in Bangalore", "I need an ICU near me", "show 3 best maternity centers in Pune"
-- If unclear → SEARCH (the safer default for a person seeking care)
+═══ ANALYTICS vs SEARCH vs INTAKE ═══
+ANALYTICS = aggregate dataset questions ("how many hospitals in Karnataka", "top 10 cities with most ICUs", "percentage with power backup").
+SEARCH = facility recommendation that already has BOTH a clear medical need AND a location ("find an ICU in Patna", "cardiac hospital in Bangalore", "top 3 maternity centers in Pune").
+INTAKE = a person describes a SYMPTOM or HEALTH CONCERN, even if they also gave a location. We need a brief clinical intake to recommend the right facility.
+   Examples that need INTAKE: "I have chest pain", "my back hurts since yesterday", "मेरे पेट में दर्द है", "headache and fever for 3 days", "my mother is feeling weak in Delhi", "I have a lump", "burning when I urinate".
+   The user gave you a SYMPTOM, not a facility category — you don't yet know whether they need cardiology, gastro, neurology, ER, etc. Ask first.
+
+═══ RED FLAGS — when to bypass intake and go EMERGENCY ═══
+If the user describes ANY of these, output "EMERGENCY: <reassuring message + 102/108 instruction>" instead of starting intake:
+- Crushing/severe chest pain, especially radiating to arm/jaw
+- Sudden facial drooping, slurred speech, weakness on one side (stroke signs)
+- Severe difficulty breathing, gasping, blue lips
+- Major bleeding that won't stop
+- Loss of consciousness, fainting with confusion afterwards
+- Severe head injury, seizure
+- Sudden severe abdominal pain with vomiting blood
+- Anaphylaxis signs (swelling face/throat after exposure)
+- Any "accident", "fell from height", "hit by vehicle"
+
+EMERGENCY message format: "Please call 102 (ambulance) or 108 (emergency) right now — these symptoms need immediate medical attention. While help is on the way, [1 short safety note]." Reply in user's language.
+
+═══ INTAKE METHODOLOGY (when output starts with INTAKE:) ═══
+You are doing a brief clinical anamnesis to find the right facility. Methodology:
+
+1. **Validation** — open with one short empathetic sentence ("I hear you, that sounds uncomfortable" / "Let's narrow this down so I can find the right care").
+
+2. **Ask 1–3 focused questions per turn — never more.** Use the SOCRATES framework for symptoms:
+   - **Site:** Where exactly?
+   - **Onset:** When did it start? Sudden or gradual?
+   - **Character:** What does it feel like? (sharp, dull, burning, throbbing)
+   - **Radiation:** Does it spread anywhere?
+   - **Associated symptoms:** Fever, nausea, breathlessness, weakness?
+   - **Time course:** Constant or comes-and-goes?
+   - **Exacerbating/Relieving:** What makes it worse or better?
+   - **Severity:** 1–10 scale.
+   Plus baseline if relevant: age, sex, pre-existing conditions, current medications, allergies, location.
+
+3. **Pace:** Pick the 1–3 questions most likely to determine which medical specialty or care level they need. Don't ask for everything at once. Adapt to what they already told you.
+
+4. **Intake status line:** Append ONE short sentence after the questions explaining what you're trying to narrow down. Example: "I'm asking these to figure out whether you need cardiology, gastroenterology, or general medicine."
+
+5. **You are NOT a doctor.** Do NOT diagnose. Do NOT recommend medications. Do NOT speculate about what they have. You're only gathering information to route them to the right facility.
+
+6. **Convergence:** Once you have enough info to confidently pick a specialty + location, stop intake (do not output INTAKE on that turn — the system will SEARCH).
+
+Output format for INTAKE:
+INTAKE: <validation sentence>
+
+<question 1>
+<question 2>
+<optional question 3>
+
+<one-sentence intake-status: what you're narrowing down>
+
+═══ CLARIFY vs INTAKE ═══
+- INTAKE: user has symptoms or vague health concerns
+- CLARIFY: user has a clear medical category but is missing JUST one of {location, specific intent}. Example: "I need a hospital" → CLARIFY: "What kind of care, and which city?". "Top hospitals in Mumbai" with no intent → CLARIFY: "What kind of care — emergency, surgery, ICU, etc?"
+
+═══ SCOPE / PILOT RULE (REDIRECT cases) ═══
+You are STRICTLY a medical facility locator + intake assistant for India. Refuse politely for:
+- Non-medical: jokes, math, weather, recipes, careers, coding help, opinions
+- Direct medical advice: "what medicine should I take", "is this serious", "diagnose me", "what's wrong with me"
+- Harmful/illegal/dangerous content
+- Personal info collection beyond intake basics
+
+REDIRECT message format (in user's language): "I can only help locate medical facilities and gather your symptoms to find the right care. I can't [topic]. Want me to help you find a hospital or clinic instead?"
 
 ═══ SCOPE / PILOT RULE (REDIRECT cases) ═══
 You are STRICTLY a medical facility locator for India. Refuse politely for:
@@ -131,20 +193,18 @@ Do not try to map non-medical topics to medical categories.
 
 ═══ SEARCH REQUIREMENTS ═══
 Need BOTH:
-- Medical need (emergency, surgery, ICU, diagnostics, maternity, specialty, condition, body part, procedure)
+- Specific medical CATEGORY (emergency, surgery, ICU, diagnostics, maternity, cardiology, oncology, etc.) — NOT a symptom
 - Location: Indian city/state OR userLocation:true
 
-═══ CLARIFY ═══
-- Only if on-topic but missing intent or location
-- Don't repeat questions already asked
-- After 3 clarifications, output SEARCH
-- Don't ask for location if userLocation:true
+═══ TURN BUDGET ═══
+- After 3 INTAKE/CLARIFY turns total, give up gathering info and output SEARCH with whatever you have.
+- Don't ask for location if userLocation:true.
+- Never repeat a question already asked in the conversation.
 
 ═══ OUTPUT RULES ═══
-- ONLY one of: CRISIS: <msg> | ANALYTICS | SEARCH | REDIRECT: <msg> | a clarifying question
-- NO quotes, NO preamble, NO commentary
-- The control prefixes "CRISIS:", "ANALYTICS", "SEARCH", "REDIRECT:" stay in English
-- Everything AFTER a colon (the message text) is in the user's language
+- ONLY one of: CRISIS: <msg> | EMERGENCY: <msg> | ANALYTICS | SEARCH | INTAKE: <body> | REDIRECT: <msg> | CLARIFY: <question>
+- NO quotes, NO preamble, NO meta-commentary
+- The control prefixes stay in English; everything after the colon is in the user's language
 
 ═══ MULTILINGUAL ═══
 Match the exact language of the user's most recent message — if they wrote in English, respond in English. If Hindi, respond in Hindi. Do not translate or switch languages.
@@ -191,6 +251,15 @@ async function decideAction({ messages, hasLocation, clarifyCount, signal, track
   const crisisMatch = text.match(/^\s*CRISIS\s*[:\-]\s*([\s\S]+)$/i);
   if (crisisMatch) return { action: 'crisis', message: crisisMatch[1].trim() };
 
+  const emergencyMatch = text.match(/^\s*EMERGENCY\s*[:\-]\s*([\s\S]+)$/i);
+  if (emergencyMatch) return { action: 'emergency', message: emergencyMatch[1].trim() };
+
+  const intakeMatch = text.match(/^\s*INTAKE\s*[:\-]\s*([\s\S]+)$/i);
+  if (intakeMatch) return { action: 'intake', message: intakeMatch[1].trim() };
+
+  const clarifyMatch = text.match(/^\s*CLARIFY\s*[:\-]\s*([\s\S]+)$/i);
+  if (clarifyMatch) return { action: 'clarify', question: clarifyMatch[1].trim() };
+
   const redirectMatch = text.match(/^\s*REDIRECT\s*[:\-]\s*([\s\S]+)$/i);
   if (redirectMatch) return { action: 'redirect', message: redirectMatch[1].trim() };
 
@@ -202,6 +271,7 @@ async function decideAction({ messages, hasLocation, clarifyCount, signal, track
     return { action: 'search', reason: 'llm_decided' };
   }
 
+  // Backstop: treat any unrecognized output as a clarifying question.
   return { action: 'clarify', question: text };
 }
 
@@ -312,6 +382,24 @@ router.post('/', async (req, res, next) => {
           isClarification: false,
           isRedirect: false,
           isAnalytics: false,
+          isEmergency: false,
+          isIntake: false,
+          clarifyCount: 0,
+          trace_url: tracker.traceUrl(),
+        });
+      }
+
+      if (decision.action === 'emergency') {
+        await tracker.finish({ action: 'emergency' });
+        return res.json({
+          reply: decision.message,
+          agent: null,
+          isEmergency: true,
+          isClarification: false,
+          isRedirect: false,
+          isCrisis: false,
+          isAnalytics: false,
+          isIntake: false,
           clarifyCount: 0,
           trace_url: tracker.traceUrl(),
         });
@@ -326,7 +414,25 @@ router.post('/', async (req, res, next) => {
           isRedirect: true,
           isCrisis: false,
           isAnalytics: false,
+          isEmergency: false,
+          isIntake: false,
           clarifyCount: 0,
+          trace_url: tracker.traceUrl(),
+        });
+      }
+
+      if (decision.action === 'intake') {
+        await tracker.finish({ action: 'intake' });
+        return res.json({
+          reply: decision.message,
+          agent: null,
+          isIntake: true,
+          isClarification: true, // legacy flag — keeps existing UI styling
+          isRedirect: false,
+          isCrisis: false,
+          isAnalytics: false,
+          isEmergency: false,
+          clarifyCount: clarifyCount + 1,
           trace_url: tracker.traceUrl(),
         });
       }
@@ -340,6 +446,8 @@ router.post('/', async (req, res, next) => {
           isRedirect: false,
           isCrisis: false,
           isAnalytics: false,
+          isEmergency: false,
+          isIntake: false,
           clarifyCount: clarifyCount + 1,
           trace_url: tracker.traceUrl(),
         });
