@@ -1,5 +1,7 @@
+import { apiUrl } from './_base.js';
+
 export async function sendChat(messages, { signal, userLat, userLon, clarifyCount, genieConversationId } = {}) {
-  const res = await fetch('/api/chat', {
+  const res = await fetch(apiUrl('/api/chat'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

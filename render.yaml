@@ -1,0 +1,61 @@
+# Render Blueprint — deploys the MediMap Express backend as a web service.
+# After importing this blueprint via Render dashboard, set the secret
+# environment variables (marked `sync: false`) in the service's
+# Environment tab.
+#
+# The frontend is deployed separately on Vercel and points at this
+# service via VITE_API_BASE.
+
+services:
+  - type: web
+    name: medimap-india-api
+    runtime: node
+    region: singapore   # closest to India for low-latency demos
+    plan: free          # 512 MB / 0.1 CPU / spins down after 15 min idle
+    branch: main
+    rootDir: .
+    buildCommand: yarn install --frozen-lockfile
+    startCommand: node backend/src/server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT automatically — server.js reads it.
+      # Frontend on Vercel — backend must allow this origin
+      - key: CORS_ORIGIN
+        value: https://medimap-india.vercel.app
+
+      # ── Demo mode flags (work without Databricks) ────────────────────
+      - key: LOCAL_MODE
+        value: "1"
+      - key: USE_GROQ
+        value: "1"
+      - key: VERIFY_TOP_N
+        value: "1"
+
+      # ── Secrets — set these in the Render dashboard ──────────────────
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABRICKS_HOST
+        sync: false
+      - key: DATABRICKS_TOKEN
+        sync: false
+      - key: DATABRICKS_HTTP_PATH
+        sync: false
+      - key: DATABRICKS_TABLE
+        sync: false
+      - key: DATABRICKS_AGENT_URL
+        sync: false
+      - key: DATABRICKS_AGENT_MODEL
+        sync: false
+      - key: DATABRICKS_AGENT_TABLE
+        sync: false
+      - key: DATABRICKS_VS_ENDPOINT
+        sync: false
+      - key: DATABRICKS_VS_INDEX
+        sync: false
+      - key: DATABRICKS_GENIE_SPACE_ID
+        sync: false
+      - key: MLFLOW_EXPERIMENT_PATH
+        sync: false

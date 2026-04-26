@@ -1,4 +1,6 @@
-const BASE = '/api/hospitals';
+import { apiUrl } from './_base.js';
+
+const BASE = apiUrl('/api/hospitals');
 
 async function jsonFetch(url, opts = {}) {
   const res = await fetch(url, opts);

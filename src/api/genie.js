@@ -1,5 +1,7 @@
+import { apiUrl } from './_base.js';
+
 export async function askGenie(question, { signal, conversationId } = {}) {
-  const res = await fetch('/api/genie', {
+  const res = await fetch(apiUrl('/api/genie'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, conversationId: conversationId ?? null }),

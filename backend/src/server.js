@@ -11,17 +11,38 @@ import idpRouter from './routes/idp.js';
 
 const app = express();
 
-// Vercel sets VERCEL=1, Databricks Apps sets DATABRICKS_APP_PORT.
-// Either way → production CORS (same-origin) and static-file serving where applicable.
+// Vercel sets VERCEL=1, Databricks Apps sets DATABRICKS_APP_PORT,
+// Render sets RENDER=true. Each platform's port convention:
+//   - Render injects PORT
+//   - Databricks Apps injects DATABRICKS_APP_PORT
+//   - local dev defaults to 3001
 const PORT = Number(process.env.DATABRICKS_APP_PORT ?? process.env.PORT ?? 3001);
-const CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
 const IS_VERCEL = process.env.VERCEL === '1';
+const IS_RENDER = process.env.RENDER === 'true' || Boolean(process.env.RENDER_SERVICE_NAME);
 const IS_PRODUCTION =
   process.env.NODE_ENV === 'production' ||
   Boolean(process.env.DATABRICKS_APP_PORT) ||
-  IS_VERCEL;
+  IS_VERCEL ||
+  IS_RENDER;
 
-app.use(cors({ origin: IS_PRODUCTION ? true : CORS_ORIGIN }));
+// CORS_ORIGIN can be a comma-separated list — useful when frontend is on
+// Vercel (preview + production URLs) and backend is on Render.
+const CORS_ORIGIN = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function corsOrigin(origin, callback) {
+  // Same-origin / non-browser requests have no Origin header — allow them.
+  if (!origin) return callback(null, true);
+  // Wildcard match for the Vercel preview pattern (e.g. medimap-india-abc123-arayiks-projects.vercel.app)
+  if (CORS_ORIGIN.some((allowed) => origin === allowed || origin.endsWith('.vercel.app'))) {
+    return callback(null, true);
+  }
+  return callback(new Error(`CORS: ${origin} not allowed`));
+}
+
+app.use(cors({ origin: IS_PRODUCTION ? corsOrigin : CORS_ORIGIN[0] }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));

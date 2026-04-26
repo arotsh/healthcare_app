@@ -1,5 +1,7 @@
+import { apiUrl } from './_base.js';
+
 export async function runIdpExtraction({ count = 3, signal } = {}) {
-  const res = await fetch('/api/idp/extract', {
+  const res = await fetch(apiUrl('/api/idp/extract'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ count }),
